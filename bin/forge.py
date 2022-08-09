@@ -132,6 +132,47 @@ def get_fathoment_forge():
                      keyword_seed_bbox=keyword_seed_bbox
                      )
 
+def get_fathoment_forge2():
+
+    # Sample of FathomNet Images from Monterey Bay
+    query = fathomnet.models.GeoImageConstraints(
+        maxLatitude=37.0538,
+        minLatitude=36.4458,
+        maxLongitude=-121.7805,
+        minLongitude=-122.5073,
+        limit=100,
+    )
+
+    concept_images = fathomnet.api.images.find(query)
+    dataset_url_list = [img.url for img in concept_images]
+    dataset_name = "MontereyBay"
+
+    # FathomNet Keyword Example
+    keyword_name = "Sebastolobus"
+    query = fathomnet.models.GeoImageConstraints(
+        concept=keyword_name,
+        maxLatitude=37.0538,
+        minLatitude=36.4458,
+        maxLongitude=-121.7805,
+        minLongitude=-122.5073,
+        limit=1,
+    )
+    fn_img = fathomnet.api.images.find(query)
+    keyword_seed_url = fn_img[0].url
+    x = fn_img[0].boundingBoxes[0].x
+    y = fn_img[0].boundingBoxes[0].y
+    width = fn_img[0].boundingBoxes[0].width
+    height = fn_img[0].boundingBoxes[0].height
+    keyword_seed_bbox = [x, y, width, height]
+
+    return ForgeData(dataset_name=dataset_name,
+                     dataset_url_list=dataset_url_list,
+                     keyword_name=keyword_name,
+                     keyword_seed_url=keyword_seed_url,
+                     keyword_seed_bbox=keyword_seed_bbox
+                     )
+
+
 
 if __name__ == "__main__":
     from config import APPNAME
@@ -141,3 +182,6 @@ if __name__ == "__main__":
     # Customize the data loaded for forging!
     forgeData = get_fathoment_forge()
     forge(forgeData)
+    forgeData = get_fathoment_forge2()
+    forge(forgeData)
+
