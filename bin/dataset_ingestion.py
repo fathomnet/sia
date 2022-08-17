@@ -51,7 +51,6 @@ def dataset_upload_urls(
     Upload all images and or videos from the input list of urls into a new
     Dataset.
     """
-    print("THIS IS A PRINT")
     dset, vdset = setup_dataset(name, featurespec_id, patchspec_id, val_percent)
     print(dset)
     print(list_of_urls)
