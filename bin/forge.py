@@ -184,7 +184,7 @@ def get_fathoment_forge_everything():
 
     concept_images = fathomnet.api.images.find(query)
     dataset_url_list = [img.url for img in concept_images]
-    dataset_name = "FathomNet-all"
+    dataset_name = "FathomNet"
 
     # FathomNet Keyword Example
     keyword_name = "Bathochordaeus"
