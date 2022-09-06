@@ -429,7 +429,7 @@ class FeatureSpec(db.Model):
     def analyze_blob(self, blob, batch_size=256):
         iter = 0
         for patches in chunked(self.undone_patches(blob), batch_size):
-            print("calculating {}x500 patch features for {}".format(iter, blob))
+            print("calculating {}x{} patch features for {}".format(iter, blob, batch_size))
             iter += 1
             imgs = [p.image for p in patches]
             feats = self.instance.extract_many(imgs)
@@ -587,6 +587,7 @@ class Dataset(db.Model):
 
     def feature_ids(self, limit=None):
         if limit:
+            # TODO: this may need to be changed to include order by RANDOM ()
             return db.engine.execute('select id from feature where patch_id in ' +
                                      f'(select id from patch where blob_id in (select blob_id from dataset_x_blob where dataset_id = {self.id})) limit {limit}').all()
         else:
