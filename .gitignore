@@ -123,3 +123,4 @@ notebooks/
 config.py
 config-*.py
 *_aws.py
+*_local.py
