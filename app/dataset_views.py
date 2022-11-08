@@ -136,12 +136,21 @@ def dataset_upload():
 def dataset_attach():
     form = DatasetAddSpecsForm()
     dset = form.dataset.data
+    # TODO this is slow, consider delaying.
+    # TODO view shouldn't need to know about val datasets and examples
+    # TODO add extract features for keyword examples. ??? not sure if this is needed try testing. 
     if form.patchspec.data:
         dset.patchspecs.append(form.patchspec.data)
+        for vdset in dset.val_datasets:
+            vdset.patchspecs.append(form.patchspec.data)
     if form.featurespec.data:
         dset.featurespecs.append(form.featurespec.data)
+        for vdset in dset.val_datasets:
+            vdset.featurespecs.append(form.featurespec.data)
     db.session.commit()
     tasks.dataset.delay(dset.id)
+    for vdset in dset.val_datasets:
+        tasks.dataset.delay(vdset.id)
     return redirect(dset.url)
 
 @app.route('/dataset/', methods = ['GET'])

@@ -149,9 +149,14 @@ class Blob(db.Model):
         return (0, 0)  # TODO BROKEN exif.get_lat_lon(exif.get_data(self.materialize()))
 
     @property
+    # Note: this is a sequential scan. May be better to build an index
+    def patches(self):
+        return Patch.query.filter(Patch.blob_id==self.id).all()
+
+    @property
     def features(self):
         for patch in self.patches:
-            for feature in patch:
+            for feature in patch.features:
                 yield feature
 
     @property
@@ -159,7 +164,7 @@ class Blob(db.Model):
         # if self.img is not None:
         #  return self.img
         try:
-            img = imageio.imread(self.location)
+            img = np.asarray(imageio.imread(self.location))
             return img
         except IOError as e:
             print("Could not open image file for {}".format(self))
@@ -200,6 +205,7 @@ class Blob(db.Model):
     @property
     def filename(self):
         return "blob-" + str(self.id) + self.ext
+
 
     BUCKET = config.APPNAME + "-blobs"
 
@@ -269,7 +275,11 @@ class PatchSpec(db.Model):
         )
 
     def create_blob_patches(self, blob):
-        print("Creating patches for {}".format(blob))
+        # check if patches are already made
+        if Patch.query.filter((Patch.blob_id == blob.id) and (Patch.spec_id == self.id)).first():
+            return
+
+        print(f"Creating patches for {blob} using spec {self}")
         print(
             "Memory usage: %s (kb)" % resource.getrusage(resource.RUSAGE_SELF).ru_maxrss
         )
@@ -471,6 +481,7 @@ class Dataset(db.Model):
 
     is_train = db.Column(db.Boolean, nullable=False, default=True)
 
+
     def __init__(self, **kwargs):
         super(Dataset, self).__init__(**kwargs)
         # if self.owner is None and current_user.is_authenticated:
@@ -506,8 +517,6 @@ class Dataset(db.Model):
                 for f in feat:
                     db.session.add(f)
                 db.session.commit()
-                if fs.instance.__class__ is extract.CNN:
-                    fs.instance.del_networks()
                 print(
                     "Memory usage: %s (kb)"
                     % resource.getrusage(resource.RUSAGE_SELF).ru_maxrss
@@ -529,8 +538,7 @@ class Dataset(db.Model):
                 Feature(patch=Patch.query.get(p_ids[idx]), spec=fs, vector=f)
             )
         db.session.commit()
-        if fs.instance.__class__ is extract.CNN:
-            fs.instance.del_networks()
+
         return p_ids
 
     def create_all_patch_features(self, batch_size=256, fs_ids=False):
@@ -559,7 +567,8 @@ class Dataset(db.Model):
             print(
                 f"Need to calculate fs id {fs_id} for {len(all_patch_ids)} patches..."
             )
-            for p_ids in chunked(all_patch_ids, batch_size):
+            for chunk_idx, p_ids in enumerate(chunked(all_patch_ids, batch_size)):
+                print(f"Adding patch features for batch {chunk_idx}/{len(all_patch_ids)} with batch_size {batch_size} for dataset {self.id}...")
                 self.create_patch_features(p_ids, fs_id, batch_size)
 
             print(
@@ -612,6 +621,10 @@ class Dataset(db.Model):
     @property
     def images(self):
         return len(self.blobs)
+
+    @property
+    def val_datasets(self):
+        return self.val_dset.all()
 
 
 # Monkey-patch to make a foreign key reference to a dataset from another dataset
@@ -831,7 +844,7 @@ class Round(db.Model):
                 # Note: this only works for sklearn estimators...
                 try:
                     value = estimators[feature.spec.id].decision_function(
-                        feature.nparray
+                        feature.nparray.reshape(1, -1)
                     )
                     if not val:
                         yield Prediction(
@@ -1023,11 +1036,11 @@ class Round(db.Model):
 
             for ex in examples:
                 feat = Feature.of(patch=ex.patch, spec=fs)
-                samples.append(feat.vector)
+                samples.append(feat.nparray) # feat.vector may be read from the db as a list. turning it into an (N,) shape numpy array
                 results.append(1 if ex.value else -1)
 
             print(
-                f"Training estimator with {len(samples)} examples for feature spec {fs} ..."
+                f"Training estimator with {len(samples)} examples for feature spec {fs}, feature shape is {samples[-1].shape} ..."
             )
             # Evaluate on train val split
             # TODO: this would be better if we did k-fold crossvalidation
@@ -1406,7 +1419,7 @@ class Feature(db.Model):
         if self.is_video:
             return np.array(self.array)
         else:
-            return np.array(self.vector).reshape(1, -1)
+            return np.array(self.vector).squeeze()
 
     def __repr__(self):
         return (
